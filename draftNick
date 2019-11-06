@@ -1,0 +1,73 @@
+install.packages('lubridate')
+install.packages('sqldf')
+library(lubridate)
+library(sqldf)
+
+basedata = read.csv("training.csv")
+head(basedata)
+dim(basedata)
+basedata[125:250,] #this shows an abandoned call
+
+head(basedata)
+?ymd_hms
+basedata$time<-ymd_hms(basedata$contactStart, tz = "America/Denver")
+basedata$time
+?floor_date()
+basedata$timerounded<-floor_date(basedata$time, unit = "30 min")
+head(basedata)#Checking
+
+#I'm better in SQL than R so I cheated
+?sqldf
+summary<-sqldf('SELECT timerounded, COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+summary
+plot(summary)
+#https://cran.r-project.org/web/packages/lubridate/vignettes/lubridate.html
+
+attach(basedata)
+head(basedata)
+wday(timerounded, label = TRUE)
+hour(timerounded)
+minute(timerounded)
+
+#Weekdays have much more calls
+basedata$weekday <- wday(timerounded, label = TRUE)
+boxplot(basedata$agentSeconds ~ basedata$weekday,
+        xlab = "weekday", ylab = "Handle Time", col = c("red"))
+summary<-sqldf('SELECT weekday, COUNT(weekday) as "Count" FROM basedata GROUP BY weekday')
+summary
+
+#weekID variable
+names(basedata)
+basedata$timerounded
+x <- length(basedata$timerounded)
+x
+basedata$timerounded[1]
+totalTime = interval(basedata$timerounded[1], basedata$timerounded[x])
+#how to do this? 
+basedata$weekID <- timerounded  
+
+basedata$timeOfDay <- hm(basedata$timerounded)
+?hm
+
+averageHandleTime = 
+
+summary<-sqldf('SELECT , COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+
+count = 1
+for (i in c(1:length(timerounded))) {
+  if 
+  for (j in count)
+  totalTime = basedata$agentSeconds[i]
+  if (basedata$timerounded[i] == basedata$timerounded[i+1]) {
+      totalTime = totalTime + basedata$agentSeconds[i+1]
+  }
+  if else ()
+  else {
+    
+  }
+    
+    #test if at end of vector
+    #if basedata$timerounded[i] == basedata$timerounded[length(timerounded)] {
+    #  return
+    #}
+}
