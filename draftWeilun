@@ -12,26 +12,25 @@ basedata$timerounded=floor_date(basedata$time, unit = "30 min")
 head(basedata)#Checking
 
 #I'm better in SQL than R so I cheated
-summary_totalCalls<-sqldf('SELECT timerounded, COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+summary_totalCalls<-sqldf('SELECT timerounded, COUNT(timerounded) as Totalcalls FROM basedata GROUP BY timerounded')
 summary_totalCalls
-summary_averageAgentSeconds = sqldf('SELECT timerounded, AVG(agentSeconds) as totalTime FROM basedata GROUP BY timerounded')
+summary_averageAgentSeconds = sqldf('SELECT timerounded, AVG(agentSeconds) as avgAgentSeconds FROM basedata GROUP BY timerounded')
 summary_averageAgentSeconds
-basedata$dow = wday(basedata$timerounded, label = TRUE)
+basedata$dow = wday(basedata$timerounded, label = TRUE)   #dow: days of the week
 names(basedata)
-summary = sqldf('SELECT dow, as totalTime, COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+summary = sqldf('SELECT timerounded ,dow, AVG(agentSeconds) as avgAgentSeconds, COUNT(timerounded) as calls FROM basedata GROUP BY timerounded, dow')
 summary
 df <- data.frame(summary)
 head(df)
-df$dayOfWeek = sqldf('SELECT timerounded, AVG(agentSeconds) as totalTime, COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+  df$dayOfWeek = sqldf('SELECT timerounded, AVG(agentSeconds) as avgAgentSeconds, COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
 #summary = sqldf('SELECT timerounded, AVG(agentSeconds)/COUNT(timerounded) as averageTime FROM basedata GROUP BY timerounded')
 #summary
 head(basedata)
 head(df)
 attach(df)
-boxplot(totalTime ~ x = )
+boxplot(df$totalTime ~ df$dow)
+boxplot(df$calls ~ df$dow)
 
-head(basedata)
-attach(basedata)
 
 wday(timerounded, label = TRUE)#weekday
 hour(timerounded)#hour
@@ -41,12 +40,3 @@ minute(timerounded)#minute
 #https://cran.r-project.org/web/packages/lubridate/vignettes/lubridate.html
 
 
-#for loop - entire dataset
-#combine the first and second if is equal
-
-
-for(i in c(1:length(timerounded))){
-  totaltime = 0
-  if(basedata$)
-  
-}
