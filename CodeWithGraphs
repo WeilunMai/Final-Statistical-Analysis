@@ -1,0 +1,39 @@
+install.packages('lubridate')
+install.packages('sqldf')
+library(lubridate)
+library(sqldf)
+setwd("C:\\Users\\Jaden\\Documents\\Math 4400")
+basedata = read.csv("training.csv")
+
+# ymd_hms: Parse data-times with year, month, and day, hour, minute, and second components.
+basedata$time=ymd_hms(basedata$contactStart, tz = "America/Denver")
+# floor_date: Round, floor and ceiling methods for date-time objects.
+basedata$timerounded=floor_date(basedata$time, unit = "30 min")
+
+summary_totalCalls<-sqldf('SELECT timerounded, COUNT(timerounded) as Totalcalls FROM basedata GROUP BY timerounded')
+summary_totalCalls
+
+summary_averageAgentSeconds = sqldf('SELECT timerounded, AVG(agentSeconds) as avgAgentSeconds FROM basedata GROUP BY timerounded')
+summary_averageAgentSeconds
+
+basedata$dow = wday(basedata$timerounded, label = TRUE)   #dow: days of the week
+basedata$week = isoweek(basedata$timerounded)
+names(basedata)
+
+summary = sqldf('SELECT timerounded, dow, week, AVG(agentSeconds) as avgAgentSeconds, COUNT(timerounded) as calls FROM basedata GROUP BY timerounded, dow, week')
+summary
+df <- data.frame(summary)
+df$dayOfWeek = sqldf('SELECT timerounded, AVG(agentSeconds) as avgAgentSeconds, COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+
+head(df)
+attach(df)
+
+#Graphs
+boxplot(df$avgAgentSeconds ~ df$dow, ylab = 'Avg Agent Seconds')
+boxplot(df$calls ~ df$dow, ylab = 'Call Volume')
+
+hist(avgAgentSeconds, xlab = 'Avg Agent Seconds', main = 'Avg Agent Seconds Hist')
+hist(calls, xlab = 'Call Volume', main = 'Call Volume Hist')
+
+plot(avgAgentSeconds, dow, ylab = "Day of the Week", xlab = "Average Agent Seconds", pch = 20, cex = 1) 
+plot(calls, dow, ylab = "Day of the Week", xlab = "Call Volume", pch = 20, cex = 1) 
