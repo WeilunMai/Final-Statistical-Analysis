@@ -1,0 +1,67 @@
+#https://cran.r-project.org/web/packages/lubridate/vignettes/lubridate.html
+install.packages('lubridate')
+install.packages('sqldf')
+library(lubridate)
+library(sqldf)
+
+#original data with date.time parsed
+basedata = read.csv("training.csv")
+df=basedata[,c(3,8)]
+  date.time<-ymd_hms(basedata$contactStart, tz="MST") #use MST, because Utah company
+df$timerounded<-floor_date(date.time, unit = "30 min")
+df$dayOfWeek=wday(df$timerounded, label = TRUE)
+  week.start=df$timerounded - days(1)
+df$weekID = isoweek(week.start) - 17
+df$timeOfDay <- format(df$timerounded, format="%H:%M")
+
+#Weekdays have much more calls
+summary<-sqldf('SELECT dayOfWeek, COUNT(dayOfWeek) as "Count" FROM df GROUP BY dayOfWeek')
+summary
+
+#data frame by interval
+  calls<-sqldf('SELECT timerounded, COUNT(timerounded) as calls FROM df GROUP BY timerounded')
+df.int=calls[2]
+  aht=sqldf('SELECT timerounded, AVG(agentSeconds) as aht FROM df GROUP BY timerounded')
+df.int$aht=aht[1:dim(aht)[1],2]
+  timeDayWeek=sqldf('SELECT timeOfDay, dayOfWeek, weekID FROM df GROUP BY timerounded, dayOfWeek, weekID')
+df.int=data.frame(df.int,timeDayWeek)
+#need to make timee of day numeric
+  time=hm(df.int$timeOfDay)
+  timeNumeric=as.numeric(time)/3600
+df.int$timeOfDay=timeNumeric
+plot(df.int)
+
+#data frame by day-week
+  calls.day=sqldf('SELECT dayOfWeek, weekID, SUM(calls) as "calls.day", AVG(aht) as "aht.day" FROM "df.int" GROUP BY dayOfWeek, weekID')
+df.day=calls.day  
+plot(df.day)
+
+#some graphs
+par(mfrow=c(3,2))
+boxplot(df.day$calls.day ~ df.day$dayOfWeek, xlab = "Day of Week", ylab = 'Total Calls in a Day')
+boxplot(df.day$aht.day ~ df.day$dayOfWeek, xlab = "Day of Week", ylab = 'Avg Agent Seconds in a Day')
+hist(df.int$aht, xlab = 'Avg Agent Seconds', main = 'Avg Agent Seconds Hist')
+hist(df.int$calls, xlab = 'Call Volume', main = 'Call Volume Hist')
+plot(df.int$timeOfDay, df.int$aht, ylab = "Avg Agent Seconds per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+plot(df.int$timeOfDay, df.int$calls, ylab = "# Calls per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+
+#other ideas:
+#holiday variable
+#do agents even answer phone calls on weekends? 
+#does each day of the week get its own coefficient? 
+#weekend variable
+#monday variable
+#tuesday variable
+#wednesday, thursday, friday variable
+#take out zeros from aht. 
+#does the call volume go up from week to week? Nope!
+df.week=sqldf('SELECT weekID, SUM(calls) as "calls", AVG(aht) as "aht" FROM "df.int" GROUP BY weekID')
+plot(df.week)
+week.calls=lm(df.week$calls~df.week$weekID)
+summary(week.calls)
+week.aht=lm(df.week$aht~df.week$weekID)
+summary(week.aht)
+#slight correlation with AHT. Why are there outliers(4,10)? Can we use the weekID as a factor, 
+#or is this cheating? 
+#why is there such a large range of agent seconds/time of day(=19,19.5)? 
+#Is it just because smaller volume, more variance? 
