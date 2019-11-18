@@ -1,0 +1,164 @@
+install.packages('lubridate')
+install.packages('sqldf')
+library(lubridate)
+library(sqldf)
+
+train = read.csv("training.csv")
+
+convert = function(basedata){
+  
+  basedata = basedata[which(basedata$agentSeconds >0),]
+  basedata$time<-ymd_hms(basedata$contactStart, tz = "America/Denver")
+  basedata$timerounded<-floor_date(basedata$time, unit = "30 min")
+  
+  calls<-sqldf('SELECT timerounded, AVG(agentSeconds), COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+  
+  x = format(calls$timerounded, format="%H:%M")
+  timeNumeric=as.numeric(hm(x))/3600
+  
+  df= data.frame(calls, 
+                 timeNumeric,
+                 wday(calls$timerounded, label = TRUE),
+                 isoweek(calls$timerounded) - 17)
+  names(df) = c('date', 'handleTime','callVolume','timeNumeric','day','weekID')
+  return(df)
+}
+
+training = convert(train)
+
+#Only weekdays have handled calls
+summary<-sqldf('SELECT day, COUNT(day) as "Count" FROM training GROUP BY day')
+summary
+
+#look at daily trends
+convertToDaily=function(data){
+  data=data
+  calls=sqldf('SELECT day, weekID, SUM(callVolume), AVG(handleTime) FROM data GROUP BY day, weekID')
+  df=data.frame(calls)
+  names(df) = c('day', 'weekID','callVolume','handleTime')
+  return(df)
+}
+
+daily = convertToDaily(training)
+plot(daily)
+
+#par(mfrow=c(3,2))
+boxplot(daily$callVolume ~ daily$day, xlab = "Day of Week", ylab = 'Total Handled Calls')
+#There is a trend
+boxplot(daily$handleTime ~ daily$day, xlab = "Day of Week", ylab = 'Avg Agent Seconds in a Day')
+#Trend in variance day to day
+#Why are there outliers? 
+hist(training$handleTime, xlab = 'Avg Agent Seconds', main = 'Avg Agent Seconds Hist')
+#shows small variance
+hist(training$callVolume, xlab = 'Call Volume', main = 'Call Volume Hist')
+#shows large variance
+plot(training$timeNumeric, training$handleTime, ylab = "Avg Agent Seconds per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+plot(training$timeNumeric, training$callVolume, ylab = "# Calls per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+
+#weekday functions and plots
+dayOfWeek=function(data,label){
+  label=rep(label,dim(data)[1])
+  data=data.frame(data,label)
+  calls=sqldf('SELECT * FROM data WHERE day == label')
+  return(calls[,-7])
+}
+
+#par(mfrow=c(1,1))
+monday=dayOfWeek(training,"Mon")
+plot(monday$timeNumeric, monday$handleTime, ylab = "Avg Agent Seconds per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+tuesday=dayOfWeek(training,"Tue")
+plot(tuesday$timeNumeric, tuesday$handleTime, ylab = "Avg Agent Seconds per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+wednesday=dayOfWeek(training,"Wed")
+plot(wednesday$timeNumeric, wednesday$handleTime, ylab = "Avg Agent Seconds per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+thursday=dayOfWeek(training,"Thu")
+plot(thursday$timeNumeric, thursday$handleTime, ylab = "Avg Agent Seconds per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+friday=dayOfWeek(training,"Fri")
+plot(friday$timeNumeric, friday$handleTime, ylab = "Avg Agent Seconds per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+#The function seems to be the same for each day(just an overall difference in average)
+
+#handleTime vs. time by week
+weekly=function(data,label){
+  label=rep(label,dim(data)[1])
+  data=data.frame(data,label)
+  calls=sqldf('SELECT * FROM data WHERE weekID == label')
+  return(calls[,-7])
+}
+#week.1=weekly(training,1)
+
+weeksVector=c(1:18)
+for(i in 1:18){
+  df.week=weekly(training,i)
+  plot(df.week$timeNumeric, df.week$handleTime, main = "Weekly", ylab = "Avg Agent Seconds per Time Interval (30 min)", xlab = "Time of Day", pch = 20, cex = 1) 
+}
+#The function seems to be the same for each week
+#How to overlay plots?
+
+#now plot crunch time variance vs. each day-week
+endOfDay=function(basedata){
+  basedata = basedata[which(basedata$agentSeconds >0),]
+  basedata$time<-ymd_hms(basedata$contactStart, tz = "America/Denver")
+  basedata$timerounded<-floor_date(basedata$time, unit = "30 min")
+  x = format(basedata$timerounded, format="%H:%M")
+  timeNumeric=as.numeric(hm(x))/3600
+  day=wday(basedata$timerounded, label = TRUE)
+  weekID=isoweek(basedata$timerounded) - 17
+  df=data.frame(basedata$agentSeconds,timeNumeric,day,weekID)
+  df<-sqldf('SELECT * FROM df WHERE timeNumeric IN (19,19.5)')
+  return(df)
+}
+crunchTime=endOfDay(train)
+
+almostTheEnd=function(basedata){
+  basedata = basedata[which(basedata$agentSeconds >0),]
+  basedata$time<-ymd_hms(basedata$contactStart, tz = "America/Denver")
+  basedata$timerounded<-floor_date(basedata$time, unit = "30 min")
+  x = format(basedata$timerounded, format="%H:%M")
+  timeNumeric=as.numeric(hm(x))/3600
+  day=wday(basedata$timerounded, label = TRUE)
+  weekID=isoweek(basedata$timerounded) - 17
+  df=data.frame(basedata$agentSeconds,timeNumeric,day,weekID)
+  df<-sqldf('SELECT * FROM df WHERE timeNumeric IN (18,18.5)')
+  return(df)
+}
+almostThere=almostTheEnd(train)
+
+almostAlmostTheEnd=function(basedata){
+  basedata = basedata[which(basedata$agentSeconds >0),]
+  basedata$time<-ymd_hms(basedata$contactStart, tz = "America/Denver")
+  basedata$timerounded<-floor_date(basedata$time, unit = "30 min")
+  x = format(basedata$timerounded, format="%H:%M")
+  timeNumeric=as.numeric(hm(x))/3600
+  day=wday(basedata$timerounded, label = TRUE)
+  weekID=isoweek(basedata$timerounded) - 17
+  df=data.frame(basedata$agentSeconds,timeNumeric,day,weekID)
+  df<-sqldf('SELECT * FROM df WHERE timeNumeric IN (17,17.5)')
+  return(df)
+}
+almostAlmostThere=almostAlmostTheEnd(train)
+#we see that sd is not different no matter the time period
+#the problem is there in not enough volume during crunch time to achieve a good average for 
+#those time intervals
+#plot crunch time variance vs. crunch time volume?  what does this mean? 
+#plot non-crunch variance vs. non-crunch volume 
+
+theGrind=sqldf('SELECT * FROM training WHERE timeNumeric<18')
+par(mfrow=c(1,3))
+boxplot(theGrind$handleTime ~ theGrind$day, xlab = "Day of Week", ylab = ' < Avg Agent Seconds < 18:00')
+boxplot(daily$handleTime ~ daily$day, xlab = "Day of Week", ylab = 'Avg Agent Seconds in a Day')
+boxplot(training$handleTime ~ training$day, xlab = "Day of Week", ylab = 'Avg Agent Seconds')
+
+
+
+
+#other ideas:
+#holiday variable (only for volume)
+#weekend variable (only for volume)
+
+########################################
+#model questions:
+#does each day of the week get its own coefficient?
+#categorical with interaction of days (GAM) and trend (X, X^2, X^3 ...) for tthe time interval before 18 hours
+
+
+
+
