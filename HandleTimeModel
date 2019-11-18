@@ -1,0 +1,87 @@
+#run HandleTimeData.R for the "training" data set
+install.packages('gam')
+library(gam)
+library(splines)
+attach(training)
+
+timelims=range(training$timeNumeric)
+time.grid=seq(from=timelims[1],to=timelims[2])
+handlelims=range(theGrind$handleTime)
+handle.grid=seq(from=handlelims[1],to=handlelims[2])
+plot(training$timeNumeric,training$handleTime,xlim=timelims, ylim=handlelims,
+     cex=.5,col="darkgrey",xlab="Time of Day (MST)",ylab="Avg Handle Time (in seconds/30 min)")
+title (" Smoothing Spline ")
+fit.smooth.cv=smooth.spline(training$timeNumeric,training$handleTime,cv=TRUE)
+fit$df
+lines(fit.smooth.cv,col="red",lwd=2)
+fit.smooth.7=smooth.spline(training$timeNumeric,training$handleTime,df=7)
+lines(fit.smooth.7,col="blue",lwd=2)
+legend("topright",legend=c("26 DF","7 DF"),
+       col=c("red","blue"),lty=1,lwd=2,cex=.8)
+
+install.packages("rgl", dependencies = TRUE)
+library(rgl)
+plot3d(timeNumeric,day,handleTime,xlim=timelims, zlim=handlelims,
+     cex=.5,col="darkgrey",xlab="Time of Day (MST)",ylab="Avg Handle Time (in seconds/30 min)")
+
+fit=lm(handleTime~timeNumeric,data=training)
+anova(fit, fit.smooth.7)
+#shows that the smooth fit is better
+fit.gam1=gam(handleTime~s(timeNumeric,7),data=training)
+fit.gam2=gam(handleTime~s(timeNumeric,7)+day,data=training)
+par(mfrow=c(1,2))
+plot(fit.gam2,se=TRUE,col="blue")
+anova(fit.gam1,fit.gam2)
+fit.gam3=gam(handleTime~timeNumeric+day,data=training)
+anova(fit.gam1,fit.gam3)
+plot(fit.gam3,se=TRUE,col="blue")
+fit.gam4=gam(handleTime~s(timeNumeric:day,7),data=training)
+
+#what was chan saying about interaction model? 
+#how can we model interactions? 
+#why is fit.gam3 doing better than fit.gam2? 
+fit.smooth.7=smooth.spline(training$timeNumeric,training$handleTime,df=7)
+library(boot)
+set.seed(17)
+fit=glm(handleTime~poly(timeNumeric,4),data=training)
+trainIndex = sample(c(1:dim(training)[1]), .7*dim(training)[1], replace = FALSE)
+fit.gam1=gam(handleTime~s(timeNumeric,7),data=training[trainIndex,])
+pred=predict(fit.gam1, training[-trainIndex,])
+error=sum(((training$handleTime[-trainIndex]-pred)^2)/dim(training[-trainIndex,])[1])
+print(error)
+
+fit=lm(handleTime~timeNumeric+day,data=training[-trainIndex,])
+pred=predict(fit, training[-trainIndex,])
+error=sum(((training$handleTime[-trainIndex]-pred)^2)/dim(training[-trainIndex,])[1])
+print(error)
+
+fit=lm(handleTime~(poly(timeNumeric,4)+day)^2,data=training[-trainIndex,])
+summary(fit)
+pred=predict(fit, training[-trainIndex,])
+error=sum(((training$handleTime[-trainIndex]-pred)^2)/dim(training[-trainIndex,])[1])
+print(error)
+
+
+
+cv.error=cv.glm(training,fit,K=10)$delta
+cv.error/dim(training)[1]
+#cv.error.10=rep(0,10)
+#for(i in 1:10){
+#  glm.fit=glm(mpg~poly(horsepower,i),data=Auto)
+#  cv.error.10[i]=cv.glm(Auto,glm.fit,K=10)$delta[1]
+#}
+#cv.error.10
+#plot(cv.error.10, type='l')
+#points(which.min(cv.error.10), cv.error.10[which.min(cv.error.10)], 
+#col='red',cex = 2, pch = 20)
+
+
+
+
+ 
+newtime = ifelse(timeNumeric , constant, not.constant)
+
+fit.gam3=gam(handleTime~ (timeNumeric + day + newtime )^2,data=training)
+plot(fit.gam3,se=TRUE,col="blue")
+
+plot(timeNumeric,handleTime)
