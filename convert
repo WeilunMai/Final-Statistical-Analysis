@@ -1,0 +1,33 @@
+convert = function(basedata){
+  
+  basedata$time<-ymd_hms(basedata$contactStart, tz = "America/Denver")
+  basedata$timerounded<-floor_date(basedata$time, unit = "30 min")
+  
+  calls<-sqldf('SELECT timerounded, AVG(agentSeconds), COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+  
+  x = format(calls$timerounded, format="%H:%M")
+  timeNumeric=as.numeric(hm(x))/3600
+  
+  df= data.frame(calls, 
+                 timeNumeric,
+                 wday(calls$timerounded, label = TRUE),
+                 isoweek(calls$timerounded) - 17)
+  names(df) = c('date','handleTime', 'callVolume','timeNumeric','day','weekID')
+  x = format(df$date, format="%D")
+  df$holiday=ifelse(x=="05/28/18",1,ifelse(x=="07/04/18",1,0))
+  df$mon=ifelse(df$day=='Mon',ifelse(df$holiday==0,1,0),0)
+  df$tue=ifelse(df$day=='Tue',1,0)
+  df$wed=ifelse(df$day=='Wed',ifelse(df$holiday==0,1,0),0)
+  df$thu=ifelse(df$day=='Thu',1,0)
+  df$fri=ifelse(df$day=='Fri',1,0)
+  df$sat=ifelse(df$day=='Sat',1,0)
+  df$sun=ifelse(df$day=='Sun',1,0)
+  df$eow=ifelse(df$wed==1,1,ifelse(df$day=='Thu',1,ifelse(df$day=='Fri',1,0)))
+  df$weekend=ifelse(df$day=='Sat',1,ifelse(df$day=='Sun',1,0))
+  #df$notHoliday=ifelse(x!="05/28/18",ifelse(x!="07/04/18",1,0),0)
+  df$notHoliday=ifelse(x!="05/28/18",ifelse(x!="07/04/18",1,0),0)
+  df$workHour=ifelse(df$timeNumeric<20,ifelse(df$timeNumeric>6,df$timeNumeric-6,0),0)
+  df$on=ifelse(df$workHour!=0,1,0)
+  #volume$workingHours=ifelse(timeNumeric<20,ifelse(timeNumeric>6,1,0),0)
+  return(df)
+}
