@@ -1,0 +1,76 @@
+install.packages('lubridate')
+install.packages('sqldf')
+library(lubridate)
+library(sqldf)
+
+train = read.csv("training.csv")
+
+convert = function(basedata){
+  
+  basedata = basedata[which(basedata$agentSeconds >0),]
+  basedata$time<-ymd_hms(basedata$contactStart, tz = "America/Denver")
+  basedata$timerounded<-floor_date(basedata$time, unit = "30 min")
+  
+  calls<-sqldf('SELECT timerounded, AVG(agentSeconds), COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+  
+  x = format(calls$timerounded, format="%H:%M")
+  timeNumeric=as.numeric(hm(x))/3600
+  
+  df= data.frame(calls, 
+                 timeNumeric,
+                 wday(calls$timerounded, label = TRUE),
+                 isoweek(calls$timerounded) - 17)
+  names(df) = c('date', 'handleTime','callVolume','timeNumeric','day','weekID')
+  
+  return(df)
+}
+
+hdf=convert(train)
+grind=sqldf("SELECT * FROM hdf WHERE timeNumeric<19")
+attach(grind)
+plot(timeNumeric,handleTime)
+grind$workHour=grind$timeNumeric-7
+plot(workHour,handleTime)
+
+set.seed(1)
+trainIndex = sample(c(1:dim(grind)[1]), .7*dim(grind)[1], replace = FALSE)
+
+
+fit=glm(handleTime~workHour+I(workHour^2)
+         ,data=grind,subset=trainIndex)
+summary(fit)
+testing=grind[-trainIndex,"handleTime"]
+yhat=predict(fit,grind[-trainIndex,])
+error=mean((yhat-testing)^2)
+error
+
+install.packages('gam')
+library(gam)
+library(splines)
+
+fit.gam1=gam(handleTime~s(workHour,12),data=grind,subset=trainIndex)
+yhat=predict(fit.gam1,grind[-trainIndex,])
+error=mean((yhat-testing)^2)
+error
+plot(fit.gam1,se=TRUE,col="blue")
+
+
+plot(workHour,handleTime,
+     cex=.5,col="darkgrey",xlab="Time of Day (MST)",ylab="Avg Agent Seconds (per 30 min)")
+#title (" Smoothing Spline ")
+# fitcv=smooth.spline(grind$workHour[trainIndex],grind$handleTime[trainIndex],cv=TRUE)
+# fit$df
+#lines(fit.smooth.cv,col="red",lwd=2)
+#title (" Smoothing Spline ")
+fits=smooth.spline(grind$workHour[trainIndex],grind$handleTime[trainIndex],df=20)
+lines(fits,col="blue",lwd=2)
+legend("topright",legend=c("7 DF"),
+       col=c("blue"),lty=1,lwd=2,cex=.8)
+
+plot(grind[which<workHour,handleTime,
+           cex=.5,col="darkgrey",xlab="Time of Day (MST)",ylab="Avg Agent Seconds (per 30 min)")
+
+# yhat=predict(fits,grind[-trainIndex,])
+# error=mean((yhat-testing)^2)
+# error
+# plot(fit.gam1,se=TRUE,col="blue")
