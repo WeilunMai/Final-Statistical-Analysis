@@ -1,0 +1,121 @@
+install.packages('lubridate')
+install.packages('sqldf')
+library(lubridate)
+library(sqldf)
+
+train = read.csv("training.csv")
+
+convert = function(basedata){
+  
+  basedata$time<-ymd_hms(basedata$contactStart, tz = "America/Denver")
+  basedata$timerounded<-floor_date(basedata$time, unit = "30 min")
+  
+  calls<-sqldf('SELECT timerounded, AVG(agentSeconds), COUNT(timerounded) as calls FROM basedata GROUP BY timerounded')
+  
+  x = format(calls$timerounded, format="%H:%M")
+  timeNumeric=as.numeric(hm(x))/3600
+  
+  df= data.frame(calls, 
+                 timeNumeric,
+                 wday(calls$timerounded, label = TRUE),
+                 isoweek(calls$timerounded) - 17)
+  names(df) = c('date','handleTime', 'callVolume','timeNumeric','day','weekID')
+  x = format(df$date, format="%D")
+  df$holiday=ifelse(x=="05/28/18",1,ifelse(x=="07/04/18",1,0))
+  df$mon=ifelse(df$day=='Mon',ifelse(df$holiday==0,1,0),0)
+  df$tue=ifelse(df$day=='Tue',1,0)
+  df$wed=ifelse(df$day=='Wed',ifelse(df$holiday==0,1,0),0)
+  df$thu=ifelse(df$day=='Thu',1,0)
+  df$fri=ifelse(df$day=='Fri',1,0)
+  df$sat=ifelse(df$day=='Sat',1,0)
+  df$sun=ifelse(df$day=='Sun',1,0)
+  df$eow=ifelse(df$wed==1,1,ifelse(df$day=='Thu',1,ifelse(df$day=='Fri',1,0)))
+  df$weekend=ifelse(df$day=='Sat',1,ifelse(df$day=='Sun',1,0))
+  #df$notHoliday=ifelse(x!="05/28/18",ifelse(x!="07/04/18",1,0),0)
+  df$notHoliday=ifelse(x!="05/28/18",ifelse(x!="07/04/18",1,0),0)
+  df$workHour=ifelse(df$timeNumeric<20,ifelse(df$timeNumeric>6,df$timeNumeric-6,0),0)
+  df$on=ifelse(df$workHour!=0,1,0)
+  #volume$workingHours=ifelse(timeNumeric<20,ifelse(timeNumeric>6,1,0),0)
+  return(df)
+}
+
+df=convert(train)
+attach(df)
+
+set.seed(1)
+trainIndex = sample(c(1:dim(df)[1]), .7*dim(df)[1], replace = FALSE)
+
+fit=glm(callVolume~(poly(workHour,2)+mon+tue+eow+sat+sun+holiday)^2,data=df[trainIndex,])
+fit2=glm(callVolume~workHour:mon+I(workHour^2):mon+mon:on
+          +workHour:tue+I(workHour^2):tue+tue:on
+          +workHour:eow+I(workHour^2):eow+eow:on
+          #+workHour:weekend+I(workHour^2):weekend+weekend:on
+          #+workHour:sun+I(workHour^2):sun+sun:on
+          #+workHour:holiday+I(workHour^2):holiday+holiday:on
+          ,data=df[trainIndex,])
+summary(fit2)
+#fit2=glm(callVolume~(poly(workHour,2)+mon+tue+eow+weekend+notHoliday)^2,data=df[trainIndex,])
+#fit2=glm(callVolume~(poly(workHour,2)+mon+tue+eow+weekend+holiday)^2,data=df[trainIndex,])
+  
+testing=df[-trainIndex,"callVolume"]
+yhat=predict(fit,newdata=df[-trainIndex,])
+error=mean((yhat-testing)^2)
+yhat2=predict(fit2,newdata=df[-trainIndex,])
+error2=mean((yhat2-testing)^2)
+error2
+
+###################################################33333
+convertToDaily=function(data){
+  data=data
+  calls=sqldf('SELECT day, weekID, SUM(callVolume) FROM data GROUP BY day, weekID')
+  df=data.frame(calls)
+  names(df) = c('day', 'weekID','callVolume')
+  return(df)
+}
+
+daily = convertToDaily(df)
+par(mfrow=c(1,1))
+boxplot(daily$callVolume ~ daily$day, 
+        xlab = "Day of Week", 
+        ylab = 'Total Calls',
+        main = "Total Calls vs. Day of Week")
+#plot(workHour,callVolume,
+#     xlab="Work Hour from 0 (6 AM MST) to 14 (8 PM MST)",ylab="Call Volume (calls/30min)")
+plot(timeNumeric,callVolume,
+     xlab="Time 0 (12-12:29 AM MST) to 23.5 (11:30-11:59 PM MST)",
+     ylab="Call Volume (calls/30min)",
+     main="Call Volume vs. Time of Day")
+
+plot(df[which(mon==1),'workHour'],df[which(mon==1),'callVolume'])
+plot(df[which(day=='Tue'),'workHour'],df[which(day=='Tue'),'callVolume'])
+plot(df[which(wed==1),'workHour'],df[which(wed==1),'callVolume'])
+plot(df[which(day=='Thu'),'workHour'],df[which(day=='Thu'),'callVolume'])
+plot(df[which(day=='Fri'),'workHour'],df[which(day=='Fri'),'callVolume'])
+plot(df[which(eow==1),'workHour'],df[which(eow==1),'callVolume'])
+plot(df[which(holiday==1),'timeNumeric'],df[which(holiday==1),'callVolume'])
+plot(df[which(holiday==1),'timeNumeric'],df[which(holiday==1),'callVolume'])
+plot(df[which(holiday==1),'timeNumeric'],df[which(holiday==1),'callVolume'])
+
+#sund=volume[which(volume$sun==1),]
+#plot(sund$timeNumeric,sund$callVolume)
+#the holidays can be treated the same (working hours important)
+#sun and sat are diff (still more concentrated during working hours)
+#offShift=volume[which(volume$workingHours==0),]
+#plot(offShift$timeNumeric,offShift$callVolume)
+#volume$sun=ifelse(volume$day=='Sun',1,0)
+#onShift=volume[which(volume$workingHours==1),]
+#plot(onShift$timeNumeric,onShift$callVolume)
+
+# fit=glm(callVolume~
+#           notHoliday:poly(workHour,2):mon+mon
+#         +poly(workHour,2):tue
+#         +notHoliday:poly(workHour,2):wed
+#         +poly(workHour,2):thu
+#         +poly(workHour,2):fri
+#         +poly(workHour,2):sat
+#         +poly(workHour,2):sun
+#         ,data=df[trainIndex,])
+# summary(fit)
+
+514.8
+78.5
